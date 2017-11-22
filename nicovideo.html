@@ -1,0 +1,224 @@
+	<!doctype html>
+	<html lang="ja">
+	<head>
+		<meta charset="UTF-8">
+		<title>ex-nicovideo-player</title>
+		<script src="https://unpkg.com/vue"></script>
+		<style>
+		.controlle-panel{
+			border: 1px solid #555;
+			width: 280px;
+			padding: 5px;
+			margin: 10px 0;
+		}
+		#player__iframe{
+			webkit-transform: scale(.87);
+			transform: scale(.87);
+			-webkit-transform-origin: 0 0;
+			transform-origin: 0 0;
+			margin-bottom: -27px;
+		}
+		.playlist{
+			list-style: none;
+			padding: 0;
+			width: 280px;
+			background: #282c37;
+			color: #fff;
+			height: 120px;
+			overflow: scroll;
+
+		}
+		.playlist li{
+			display: -ms-flexbox;
+			display: -webkit-box;
+			display: flex;
+			-webkit-box-orient: horizontal;
+			-webkit-box-direction: normal;
+			-ms-flex-flow: row nowrap;
+			flex-flow: row nowrap;
+			border-bottom: 1px solid #393f4f;
+			box-sizing:border-box;
+			height: 30px;
+			overflow: hidden;
+		}
+		.playlist li.active{
+			background: #404247;
+		}
+		.playlist li p{
+			font-size: 12px;
+			padding: 0 6px;
+			margin: 0;
+			line-height: 14px;
+			width: 200px;
+		}
+		.playlist li img{
+			height: 29px;
+			max-width: 80px;
+		}
+		.playlist button{
+			width: 20px;
+			margin: 3px 0;
+			padding: 0;
+		}
+		</style>
+	</head>
+	<body>
+		<p>
+			ニコニコ動画HTML5外部プレイヤー<br>
+			プレイリスト + 自動再生
+		</p>
+		<div id="app">
+			<div class="controlle-panel">
+				<div class="row">テスト用コントローラ</div>
+				<div class="row">
+					<input type="text" v-model="controller.input" placeholder="smXXXX"/>
+					<button v-on:click="addVideo">追加</button>
+				</div>
+				<div class="row">
+					<button v-on:click="playVideo">再生</button>
+					<button v-on:click="skipVideo">次</button>
+				</div>
+			</div>
+			<div class="player">
+				<iframe id="player__iframe" allowfullscreen="" width="320" height="180" v-bind:src="videoIdToEmbedUrl(player.videoId)">
+				</iframe>
+			</div>
+			<ul class="playlist">
+				<li v-for="video in videoList" v-on:click="selectVideoFromList(video.uuid)" v-bind:class="{ active: player.uuid == video.uuid }">
+					<img v-bind:src="videoIdToImageUrl(video.videoId)">
+					<p>{{video.title}}</p>
+					<button v-on:click.stop="removeVideoFromList(video.uuid)">x</button>
+				</li>
+			</ul>
+		</div>
+		<script type="text/javascript">
+		var data = {
+			controller: {
+				input: "",
+			},
+			player: {
+				videoId:"",
+				uuid: "",
+				title: "",
+			},
+			videoList: [],
+		};
+
+		var methods = {
+			addVideo: function(){
+				console.log("add");
+				const videoId = this.controller.input;
+				this.addVideoToList(videoId, "テストタイトル"+videoId);
+				this.controller.input = "";
+			},
+			playVideo: function(){
+				this.postPlayerMessage("play");
+			},
+			skipVideo: function(){
+				const currentUuid = this.player.uuid;
+				if(currentUuid == "") return;
+
+				const currentIndex = this.videoList.findIndex(
+					(item) => {if(item.uuid == currentUuid) return true;}
+					);
+				if(currentIndex == -1 || currentIndex+1 >= this.videoList.length) return;
+				
+				this.player = this.videoList[currentIndex+1];
+			},
+			addVideoToList: function(videoId, title){
+				const uuid = this.generateUuid();
+				this.videoList.push({
+					uuid,
+					videoId,
+					title,
+				})
+				if(this.videoList.length == 1){
+					this.player.videoId = videoId;
+					this.player.uuid = uuid;
+				}
+			},
+			removeVideoFromList: function(uuid){
+				const currentUuid = this.player.uuid;
+				const currentIndex = this.videoList.findIndex(
+					(item) => {
+						if(item.uuid == currentUuid) return true;
+					});
+				if(currentIndex+1 >= this.videoList.length){
+					this.resetPlayer();
+				}else{
+					this.skipVideo();
+				}
+				this.videoList = this.videoList.filter((item, index)=>{
+					if(item.uuid != uuid) return true;
+				});
+			},
+			selectVideoFromList: function(uuid){
+				const index = this.videoList.findIndex(
+					(item) => {if(item.uuid == uuid) return true;}
+					);
+				this.player = this.videoList[index];
+			},
+			resetPlayer: function(){
+				this.player = {
+					videoId:"",
+					uuid: "",
+					title: "",
+				}
+			},
+			postPlayerMessage: function(eventName){
+				const player = document.getElementById('player__iframe');
+				const origin = 'https://embed.nicovideo.jp';
+				player.contentWindow.postMessage({
+					sourceConnectorType: 1,
+					eventName: eventName,
+				},origin);
+			},
+			addPlayerMessageListner: function(){
+				window.addEventListener('message', (e) => {
+					if (e.origin === 'https://embed.nicovideo.jp') {
+						console.log(e);
+						console.log(e.data.eventName);
+						if(e.data.eventName === 'loadComplete'){
+							this.playVideo();
+						}
+						if(e.data.eventName === 'playerStatusChange'){
+							if(e.data.data.playerStatus === 4){
+								this.skipVideo();
+							}
+						}
+					}
+				});
+			},
+			videoIdToEmbedUrl: function(videoId){
+				if(videoId != ""){
+					return "https://embed.nicovideo.jp/watch/" + videoId + "?jsapi=1";
+				}else{
+					return "";
+				}
+			},
+			videoIdToImageUrl: function(videoId){
+				if(videoId != ""){			
+					return "https://tn.smilevideo.jp/smile?i=" + videoId.replace("sm", "");
+				}else{
+					return "";
+				}
+			},
+			generateUuid: function (){
+				var strong = 1000;
+				return new Date().getTime().toString(16) + Math.floor(strong*Math.random()).toString(16)
+			}
+		};
+
+		var app = new Vue({
+			el: '#app',
+			data,
+			methods
+		});
+		app.addPlayerMessageListner();
+		// テスト用
+		app.addVideoToList("sm9", "テストタイトル：sm9");
+		app.addVideoToList("sm2355", "テストタイトル：sm2355");
+		app.addVideoToList("sm29843977", "テストタイトル：sm29843977");
+		</script>
+	</body>
+	</html>
