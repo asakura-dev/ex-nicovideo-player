@@ -121,7 +121,7 @@
 				const currentIndex = this.videoList.findIndex(
 					(item) => {if(item.uuid == currentUuid) return true;}
 					);
-				if(currentIndex == -1 || currentIndex+1 >= this.videoList.length) return;
+				if(currentIndex+1 >= this.videoList.length) return;
 				
 				this.player = this.videoList[currentIndex+1];
 			},
@@ -139,14 +139,16 @@
 			},
 			removeVideoFromList: function(uuid){
 				const currentUuid = this.player.uuid;
-				const currentIndex = this.videoList.findIndex(
-					(item) => {
-						if(item.uuid == currentUuid) return true;
-					});
-				if(currentIndex+1 >= this.videoList.length){
-					this.resetPlayer();
-				}else{
-					this.skipVideo();
+				if(currentUuid === uuid){
+					const currentIndex = this.videoList.findIndex(
+						(item) => {
+							if(item.uuid == currentUuid) return true;
+						});
+					if(currentIndex+1 >= this.videoList.length){
+						this.resetPlayer();
+					}else{
+						this.skipVideo();
+					}
 				}
 				this.videoList = this.videoList.filter((item, index)=>{
 					if(item.uuid != uuid) return true;
